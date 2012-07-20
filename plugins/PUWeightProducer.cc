@@ -59,7 +59,7 @@ private:
 PUWeightProducer::PUWeightProducer(const edm::ParameterSet& iConfig) {
   puInfoSource_       = iConfig.getParameter<edm::InputTag>  ("PUInfoSource");
   dataPileUpHistFile_ = iConfig.getParameter<edm::FileInPath>("DataPileUpHistFile");
-  mcPileUpHistFile_   = iConfig.getParameter<edm::FileInPath>("McPileUpHistFile");
+  mcPileUpHistFile_   = iConfig.getParameter<edm::FileInPath>("MCPileUpHistFile");
   pileUpModeForMC_    = iConfig.getParameter<std::string>    ("PileUpModeForMC");
   debug_              = iConfig.getParameter<bool>           ("Debug");
   produces<double>("");
@@ -70,12 +70,13 @@ PUWeightProducer::~PUWeightProducer() {
 }
 
 void PUWeightProducer::produce(edm::Event& ev, const edm::EventSetup& es) {
-
+  if(debug_) std::cout<<"Running PUWeightProducer with mode "<<pileUpModeForMC_<<std::endl;
   using namespace edm;
 
+  if(debug_) std::cout<<"ev.isRealData()::"<<ev.isRealData()<<std::endl;
   double puWeight=1.0;
   if( ! ev.isRealData() ) {
-
+    if(debug_) std::cout<<"Running on MC!"<<std::endl;
     Handle<std::vector< PileupSummaryInfo > >  PupInfo;
     ev.getByLabel(puInfoSource_, PupInfo);
 
@@ -104,10 +105,11 @@ void PUWeightProducer::produce(edm::Event& ev, const edm::EventSetup& es) {
       float ave_npv = float(sum_npv)/3.0;
       //puWeight = LumiWeights_.weight3BX( ave_npv );
       puWeight = LumiWeights_.weight( ave_npv );
+      if(debug_) std::cout << "ave_npv " << ave_npv <<  " puWeight " << puWeight << " " << LumiWeights_.weight( ev ) << std::endl;
     }
     
     // Fall11_PUS6  
-    else if( pileUpModeForMC_ == "Fall11_PUS6") {
+    else if( pileUpModeForMC_ == "Fall11_PUS6" || pileUpModeForMC_ == "Summer12") {
       int npu = -1;
       for(PVI = PupInfo->begin(); PVI != PupInfo->end(); ++PVI) {
 	int BX = PVI->getBunchCrossing();
@@ -117,9 +119,10 @@ void PUWeightProducer::produce(edm::Event& ev, const edm::EventSetup& es) {
 	}
       }
       puWeight = LumiWeights_.weight( npu );
+      if(debug_) std::cout << "npu " << npu <<  " puWeight " << puWeight << " " << LumiWeights_.weight( ev ) << std::endl;
     }
   }
-  
+  //std::cout<<"pu weight is "<<puWeight<<std::endl;
 
   std::auto_ptr<double> htp(new double(puWeight));
   ev.put(htp);  
@@ -245,6 +248,9 @@ void PUWeightProducer::beginJob() {
   else if( pileUpModeForMC_ == "Fall11_PUS6") 
     //LumiWeights_ = edm::LumiReWeighting(fall2011, dataLumiDist);
     LumiWeights_ = edm::LumiReWeighting(mcPileUpHistFile_.fullPath(), dataPileUpHistFile_.fullPath(), "fall2011MCPUHist", "pileup");
+  else if( pileUpModeForMC_ == "Summer12") 
+    //LumiWeights_ = edm::LumiReWeighting(summer2012, dataLumiDist);
+    LumiWeights_ = edm::LumiReWeighting(mcPileUpHistFile_.fullPath(), dataPileUpHistFile_.fullPath(), "summer2012MCPUHist", "pileup");
   else {
     std::cout << "Please give correct pileUpType " << std::endl;
   }
